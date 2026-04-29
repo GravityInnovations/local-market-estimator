@@ -3,8 +3,7 @@ const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 const GEONAMES_USERNAME = process.env.GEONAMES_USERNAME;
 // ============================
 // CLI
-// ============================
-console.log("OPENAI KEY EXISTS:", !!process.env.OPENAI_API_KEY);
+// ============================ 
 // Usage: npm start -- "Business Name" "Full Address, Postcode, Country"
 const [,, argName, argAddress] = process.argv;
 
