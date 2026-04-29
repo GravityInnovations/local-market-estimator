@@ -73,13 +73,19 @@ export GEONAMES_USERNAME="your_geonames_username"
 3. Run the CLI:
 
 ```bash
-npm start -- "Business Name" "Full Address, Postcode, Country"
+npm start -- "Business Name" "Full Address, Postcode, Country" [radiusMeters] "[{\"mins\":2,\"price\":20}]"
 ```
 
 Example:
 
 ```bash
-npm start -- "Glow Studio" "10 High Street, Bristol BS1 2AA, UK"
+npm start -- "Glow Studio" "10 High Street, Bristol BS1 2AA, UK" 12000 "[{\"mins\":2,\"price\":20},{\"mins\":5,\"price\":40}]"
+```
+
+Pricing-only example (uses default radius):
+
+```bash
+npm start -- "Glow Studio" "10 High Street, Bristol BS1 2AA, UK" "[{\"mins\":2,\"price\":20},{\"mins\":5,\"price\":40}]"
 ```
 
 ## Environment Variables
@@ -94,12 +100,29 @@ If `OPENAI_API_KEY` is missing, numeric modeling still runs and raw JSON output 
 
 ### 1. Input & Validation
 
-The CLI expects exactly two positional inputs:
+The CLI expects:
 
-- business name
-- full address string
+- business name (required)
+- full address string (required)
+- radius in meters (optional)
+- pricing JSON array (optional)
 
-If either is missing, the process exits with usage instructions.
+Pricing input format:
+
+```json
+[
+	{ "mins": 2, "price": 20 },
+	{ "mins": 5, "price": 40 }
+]
+```
+
+Validation rules:
+
+- `mins` must be `> 0`
+- `price` must be `>= 0`
+- pricing array must be non-empty
+
+If required fields are missing or inputs are invalid, the process exits with a usage/error message.
 
 ### 2. Geocode + Own Listing Lookup (Parallel)
 
@@ -121,7 +144,7 @@ Competitors are fetched using Nearby Search for each keyword:
 - `tanning salon`
 - `sunbed`
 
-Results are merged, deduplicated by `place_id`, and filtered to remove likely self-listings.
+The lookup radius is taken from CLI input (or default if omitted). Results are merged, deduplicated by `place_id`, and filtered to remove likely self-listings.
 
 ### 4. Competitor Enrichment
 
@@ -165,23 +188,24 @@ Let:
 - $S_{top3}$ = top-3 review share
 - $R_{avg}$ = average competitor reviews
 - $W_r$ = competitor website ratio
+- pricing options = $\{(m_i, p_i)\}_{i=1}^{n}$ where $m_i$ is minutes and $p_i$ is price
 
 ### Weighted Session Price
 
 $$
-	ext{avgSessionPrice} = 0.2\cdot\text{min2} + 0.5\cdot\text{min5} + 0.3\cdot\text{min10}
+\text{avgSessionPrice} = \frac{\sum_{i=1}^{n}(p_i \cdot m_i)}{\sum_{i=1}^{n} m_i}
 $$
 
 ### Competition Pressure
 
 $$
-	ext{pressure} = \text{clamp}\left(0.35\cdot\frac{C_t}{20} + 0.35\cdot S_{top3} + 0.3\cdot\frac{R_{avg}}{100},\ 0,\ 1\right)
+\text{pressure} = \text{clamp}\left(0.35\cdot\frac{C_t}{20} + 0.35\cdot S_{top3} + 0.3\cdot\frac{R_{avg}}{100},\ 0,\ 1\right)
 $$
 
 ### Visibility Gap
 
 $$
-	ext{visibilityGap} = \text{clamp}\left((1-W_r)\cdot0.6 + \left(1-\frac{\text{competitorsWithWebsite}}{\max(C_t,1)}\right)\cdot0.4,\ 0,\ 1\right)
+\text{visibilityGap} = \text{clamp}\left((1-W_r)\cdot0.6 + \left(1-\frac{\text{competitorsWithWebsite}}{\max(C_t,1)}\right)\cdot0.4,\ 0,\ 1\right)
 $$
 
 ### Market Size Layer
@@ -189,53 +213,53 @@ $$
 Base penetration is fixed at $0.11$.
 
 $$
-	ext{saturationAdjustment} = 1 - 0.22\cdot\text{pressure}
+\text{saturationAdjustment} = 1 - 0.22\cdot\text{pressure}
 $$
 
 $$
-	ext{monthlyMarketSize} = \frac{P\cdot0.11\cdot\text{saturationAdjustment}}{12}
+\text{monthlyMarketSize} = \frac{P\cdot0.11\cdot\text{saturationAdjustment}}{12}
 $$
 
 ### Reach Layer
 
 $$
-	ext{reachFactor} = \text{clamp}(0.22 + 0.6\cdot\text{visibilityGap} - 0.18\cdot\text{pressure},\ 0.08,\ 0.55)
+\text{reachFactor} = \text{clamp}(0.22 + 0.6\cdot\text{visibilityGap} - 0.18\cdot\text{pressure},\ 0.08,\ 0.55)
 $$
 
 $$
-	ext{reachableCustomers} = \text{monthlyMarketSize}\cdot\text{reachFactor}
+\text{reachableCustomers} = \text{monthlyMarketSize}\cdot\text{reachFactor}
 $$
 
 ### Acquisition Layer
 
 $$
-	ext{acquisitionRate} = \text{clamp}(0.075 + 0.33\cdot\text{visibilityGap} - 0.16\cdot\text{pressure},\ 0.02,\ 0.28)
+\text{acquisitionRate} = \text{clamp}(0.075 + 0.33\cdot\text{visibilityGap} - 0.16\cdot\text{pressure},\ 0.02,\ 0.28)
 $$
 
 $$
-	ext{newCustomersMid} = \text{round}(\text{reachableCustomers}\cdot\text{acquisitionRate})
+\text{newCustomersMid} = \text{round}(\text{reachableCustomers}\cdot\text{acquisitionRate})
 $$
 
 ### Repeat Behavior
 
 $$
-	ext{repeatVisitsPerCustomer} = \text{clamp}(4.3 + 1.5\cdot\text{visibilityGap} - 1.0\cdot\text{pressure},\ 3.6,\ 7.2)
+\text{repeatVisitsPerCustomer} = \text{clamp}(4.3 + 1.5\cdot\text{visibilityGap} - 1.0\cdot\text{pressure},\ 3.6,\ 7.2)
 $$
 
 ### Secondary Conversion Signal
 
 $$
-	ext{searchToVisitRate} = \text{clamp}(0.06 + 0.04\cdot\text{visibilityGap} - 0.02\cdot\text{pressure},\ 0.02,\ 0.11)
+\text{searchToVisitRate} = \text{clamp}(0.06 + 0.04\cdot\text{visibilityGap} - 0.02\cdot\text{pressure},\ 0.02,\ 0.11)
 $$
 
 $$
-	ext{conversionImpact} = \text{round}(\text{newCustomersMid}\cdot\text{searchToVisitRate}, 2)
+\text{conversionImpact} = \text{round}(\text{newCustomersMid}\cdot\text{searchToVisitRate}, 2)
 $$
 
 ### Revenue Model
 
 $$
-	ext{monthlyRevenue} = \text{newCustomersMid}\cdot\text{repeatVisitsPerCustomer}\cdot\text{avgSessionPrice}
+\text{monthlyRevenue} = \text{newCustomersMid}\cdot\text{repeatVisitsPerCustomer}\cdot\text{avgSessionPrice}
 $$
 
 Uplift bands:
@@ -249,7 +273,7 @@ Uplift bands:
 Computed after opportunity modeling:
 
 $$
-	ext{visibilityScore} = \text{round}\left(50\cdot\frac{\text{competitorsWithWebsite}}{\max(C_t,1)} + 25\cdot\mathbb{1}_{\text{ownHasOnlinePresence}} + 25\cdot W_r,\ 2\right)
+\text{visibilityScore} = \text{round}\left(50\cdot\frac{\text{competitorsWithWebsite}}{\max(C_t,1)} + 25\cdot\mathbb{1}_{\text{ownHasOnlinePresence}} + 25\cdot W_r,\ 2\right)
 $$
 
 ## Output
@@ -268,10 +292,16 @@ The CLI prints:
 
 Defined in code and important for interpretation:
 
-- `RADIUS_METERS = 10000`
+- `DEFAULT_RADIUS_METERS = 10000`
+- `DEFAULT_PRICING_OPTIONS = [{ mins: 2, price: 1.8 }, { mins: 5, price: 5 }, { mins: 10, price: 7.5 }]`
 - `PLACE_SEARCH_KEYWORDS = ["tanning salon", "sunbed"]`
 - `PLACE_DETAILS_LIMIT = 8`
 - `FALLBACK_POPULATION = 500000`
+
+Runtime overrides:
+
+- Radius can be overridden per run via CLI argument.
+- Pricing can be overridden per run via CLI pricing JSON array argument.
 
 Adjust these if your target vertical, market density, or budget assumptions differ.
 
