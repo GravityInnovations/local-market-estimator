@@ -1,25 +1,53 @@
 {
-  "name": "local-market-estimator",
+  "name": "@gravityinnovations/market-analytics-engine",
   "version": "1.0.0",
-  "description": "CLI market calculator for local salon demand estimation",
-  "main": "index.js",
+  "description": "API-driven market estimation engine for local businesses. Computes competitor pressure, population demand, visibility gap, and revenue uplift from location, competitors, and pricing tiers.",
+  "type": "module",
+  "main": "src/index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "types": "./index.d.ts"
+    }
+  },
+  "files": [
+    "src/",
+    "index.d.ts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublishOnly": "node --check src/index.js && node --check src/main.js"
+  },
+  "keywords": [
+    "market-analysis",
+    "local-business",
+    "revenue-estimation",
+    "competitor-analysis",
+    "population",
+    "opportunity-model",
+    "google-places",
+    "analytics"
+  ],
+  "author": "GravityInnovations",
+  "license": "ISC",
+  "publishConfig": {
+    "access": "public"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/GravityInnovations/local-market-estimator.git"
+    "url": "git+https://github.com/GravityInnovations/market-analytics-engine.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "module",
   "bugs": {
-    "url": "https://github.com/GravityInnovations/local-market-estimator/issues"
+    "url": "https://github.com/GravityInnovations/market-analytics-engine/issues"
   },
-  "homepage": "https://github.com/GravityInnovations/local-market-estimator#readme",
+  "homepage": "https://github.com/GravityInnovations/market-analytics-engine#readme",
   "dependencies": {
     "dotenv": "^17.4.2",
     "node-fetch": "^3.3.2"

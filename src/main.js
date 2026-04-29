@@ -136,7 +136,6 @@ export class MarketAnalyticsEngine {
       businessType,
       radiusMeters,
       pricingOptions,
-      verboseReport: Boolean(input.verboseReport),
     };
   }
 
@@ -146,15 +145,11 @@ export class MarketAnalyticsEngine {
     const app = this.createApp();
     const { result, summary } = await app.run(normalizedInput);
     const output = this.createReportOutput().create({ result, summary });
-    const verbose = normalizedInput.verboseReport;
-
-    const cliText = verbose
-      ? [`\nAnalysing: ${normalizedInput.businessName}`, `Address:   ${normalizedInput.address}\n`, output.verboseText].join("\n")
-      : null;
 
     return {
-      stats:result,
-      summary: summary
+      result,
+      summary,
+      output,
     };
   }
 }
